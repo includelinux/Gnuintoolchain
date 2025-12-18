@@ -1,0 +1,226 @@
+# Gnuintoolchain
+This about git
+Below is a practical, compact reference to four commonly-used advanced Git commands — what they do, the most important options, safe usage notes, and copy‑pasteable examples.
+
+Summary quick list
+- git stash — temporarily save unfinished working-tree changes.
+- git cherry-pick — apply one or more existing commits onto your current branch.
+- git revert — create a new commit that undoes the changes of an earlier commit (safe for published history).
+- git reset — move HEAD (and optionally index and working tree); can rewrite local history (dangerous on shared branches).
+
+-----------------------------------------------------------------------
+git stash — temporarily shelve (save) local changes
+Purpose
+- Save modified tracked files (and optionally untracked/ignored files) so you can switch branches or work on something else, then reapply later.
+
+Key commands
+- git stash push -m "message"            # preferred over deprecated stash save
+- git stash push -u -m "message"         # include untracked files (-u / --include-untracked)
+- git stash push --all -m "message"      # include ignored files too
+- git stash list                          # show saved stashes
+- git stash show -p stash@{0}             # show diff of a stash
+- git stash apply stash@{0}               # reapply but keep stash entry
+- git stash pop stash@{0}                 # reapply and remove stash entry
+- git stash branch <branch> stash@{0}     # create new branch from commit where stash was made and apply stash
+- git stash drop stash@{0}                # delete a stash
+- git stash clear                         # remove all stashes
+
+Examples
+1) Stash current changes and switch branches:
+```
+git stash push -m "WIP: experiment"    # saves changes
+git checkout main
+# do work on main...
+git checkout feature-branch
+git stash pop                           # reapply saved changes and remove stash
+```
+
+2) Stash including untracked files:
+```
+git stash push -u -m "WIP with new files"
+```
+
+3) Create a branch from the saved state (safe workflow):
+```
+git stash push -m "WIP: refactor"
+git stash branch wip/refactor stash@{0}   # creates branch at the original commit and applies stash
+```
+
+Notes & tips
+- Stashes are stored in the repository; they’re reachable but not a substitute for commits if you want long-term history.
+- Use stash branch to avoid losing context; if pop fails because of conflicts you can fix them then git add + git commit.
+
+-----------------------------------------------------------------------
+git cherry-pick — apply a commit (or commits) from somewhere else
+Purpose
+- Copy one or more commits from another branch (or history) onto the current branch as new commits.
+
+Common usage
+- git checkout my-branch
+- git cherry-pick <commit>                     # pick one commit
+- git cherry-pick A^..B                        # pick commits reachable from B but not A (range)
+- git cherry-pick -n <commit>                  # apply changes but do not commit (allow squashing multiple picks)
+- git cherry-pick -x <commit>                  # add “(cherry picked from commit ...)” to message (useful for traceability)
+- git cherry-pick --continue                    # after resolving conflicts
+- git cherry-pick --abort                       # cancel an ongoing cherry-pick
+
+Examples
+1) Pick a single commit from master onto release:
+```
+# you're on release branch
+git cherry-pick abc123def
+# if conflict:
+# resolve files, then
+git add <file>
+git cherry-pick --continue
+# or abort if you change your mind
+git cherry-pick --abort
+```
+
+2) Pick several commits:
+```
+git cherry-pick 111aaa..333ccc   # picks commits after 111aaa up to and including 333ccc
+# or
+git cherry-pick -n a1b2 c3d4 e5f6
+git commit -m "Combine multiple backported fixes"
+```
+
+Notes & tips
+- Cherry-pick rewrites commits as new commits (new SHAs). Use on feature/release branches; avoid cherry-picking many commits to/from a branch you will later merge — it creates duplicate patch content and can complicate merges.
+- For repeated backports, use -x to record original SHA.
+- Conflicts are resolved like merge/rebase: fix, git add, then --continue.
+
+-----------------------------------------------------------------------
+git revert — make a new commit that undoes an earlier commit
+Purpose
+- Create a new commit that reverses an earlier commit’s changes. Safe for public/shared branches because it doesn’t rewrite history.
+
+Common usage
+- git revert <commit>                   # revert single commit
+- git revert HEAD~2                      # revert a commit two commits ago
+- git revert --no-commit A..B            # revert a range but don’t auto-commit (let you bundle multiple reverts)
+- git revert -m 1 <merge-commit>         # revert a merge commit; -m chooses the parent (1 or 2)
+
+Examples
+1) Revert the latest commit:
+```
+git revert HEAD
+# editor opens to edit revert commit message; save/close to complete
+```
+
+2) Revert a single historic commit:
+```
+git revert 8f7d2a1
+```
+
+3) Revert multiple commits in one commit:
+```
+git revert --no-commit abc..def   # stage the inverse of those commits
+git commit -m "Revert problematic change set"
+```
+
+Notes & tips
+- Revert is the right tool on shared branches: it adds history that undoes earlier work without deleting that history.
+- Reverting a merge commit is tricky: you must choose a parent (-m). Understand which parent is the “mainline” before using -m.
+
+-----------------------------------------------------------------------
+git reset — move branch tip; control index and working tree
+Purpose
+- Move HEAD to a different commit. Depending on mode, also update index (staging area) and working tree. Frequently used to undo commits locally or to unstage files.
+
+Modes
+- --soft   : move HEAD only (keep index and working tree) — undo commit but keep staged changes
+- --mixed  : move HEAD and reset index (default) — undo commit and unstage changes (keeps working tree)
+- --hard   : move HEAD, reset index and working tree — discard commits and working-tree changes
+
+Common usage / commands
+- git reset --soft HEAD~1            # undo last commit but keep staged changes
+- git reset --mixed HEAD~1           # undo last commit and unstage (default: git reset HEAD~1)
+- git reset --hard HEAD~1            # undo last commit and discard changes
+- git reset HEAD <file>              # unstage a file (remove from index but keep working tree)
+- git reset --keep <commit>          # like --hard but refuses if local changes would be lost
+- git reset --merge <commit>         # used during some conflict recoveries
+
+Examples
+1) Fix last commit (amend staged changes first or create new commit):
+```
+# You realize you want to modify last commit:
+git reset --soft HEAD~1
+# now the changes are staged; edit files if needed, then:
+git commit -c ORIG_HEAD   # reuse the old message or:
+git commit -m "New/fixed commit message"
+```
+
+2) Unstage a file:
+```
+git reset HEAD README.md   # moves README.md out of index (unstaged) but leaves changes in working tree
+```
+
+3) Discard local commits and align with remote (dangerous!):
+```
+git fetch origin
+git reset --hard origin/main
+```
+
+Safety and recovery
+- Do not use git reset --hard on commits that have been pushed and shared; it rewrites history for that branch and will confuse collaborators.
+- If you accidentally reset/hard and want to recover: use git reflog to find the previous commit SHA and then git reset --hard <sha> to restore it:
+```
+git reflog
+git reset --hard <old-sha>
+```
+
+-----------------------------------------------------------------------
+Comparisons and best practices
+- git reset (rewrite local history) vs git revert (non-destructive): Use revert on public branches; reset is fine on local/private branches.
+- git cherry-pick vs git merge vs git rebase:
+  - cherry-pick copies specific commits to another branch.
+  - merge combines branches preserving history and producing a merge commit (or fast-forward).
+  - rebase moves a whole branch’s commits onto another base (rewrites history).
+- Stash is for short-term local work; commit instead if you want to keep the work long term.
+- Always double-check the branch you are on before reset/cherry-pick/revert.
+- When in doubt: create a backup branch before destructive operations:
+  ```
+  git branch backup-before-reset
+  ```
+
+-----------------------------------------------------------------------
+Conflict handling (brief)
+- All these commands can lead to conflicts:
+  - When conflicts occur: edit conflicted files, git add <files>, then:
+    - for cherry-pick: git cherry-pick --continue
+    - for revert (rare): git revert --continue
+    - for rebase: git rebase --continue
+  - To abort and return: use --abort (git cherry-pick --abort, git rebase --abort) or reset to a safe commit.
+
+-----------------------------------------------------------------------
+Quick examples summary (copy/paste)
+```
+# stash
+git stash push -u -m "WIP: experiment"
+git stash list
+git stash branch wip/experiment stash@{0}
+
+# cherry-pick single commit
+git checkout release
+git cherry-pick abc123def
+# resolve conflicts -> git add . -> git cherry-pick --continue
+
+# revert safely on main (creates new commit that undoes abc123def)
+git checkout main
+git revert abc123def
+
+# reset local history (dangerous)
+git checkout feature
+git reset --soft HEAD~1   # drop last commit, keep changes staged
+git reset --hard origin/feature  # make local match remote exactly (destructive)
+
+# recover from accidental hard reset
+git reflog
+git reset --hard <old-sha>
+```
+
+If you want, I can:
+- Walk you through a concrete scenario (e.g., backporting a bugfix from main to a release branch using cherry-pick),
+- Demonstrate how to recover from a mistaken git reset with an example reflog,
+- Or create a short cheat-sheet file you can copy to your dotfiles with these commands and explanations. Which would help most right now?

@@ -1,2 +1,0 @@
-# Gnuintoolchain
-This about git
