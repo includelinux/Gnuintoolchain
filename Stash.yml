@@ -1,0 +1,5 @@
+git stash push -m "WIP: experiment"    # saves changes
+git checkout main
+# do work on main...
+git checkout feature-branch
+git stash pop                           # reapply saved changes and remove stash
