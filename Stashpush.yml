@@ -1,0 +1,2 @@
+git stash push -m "WIP: refactor"
+git stash branch wip/refactor stash@{0}   # creates branch at the original commit and applies stash
